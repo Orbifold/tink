@@ -1,16 +1,16 @@
 from .Resources import *
 import os
 
-SUBJECTS = ["nsubj", "nsubjpass", "csubj", "csubjpass", "agent", "expl", "conj"]
-OBJECTS = ["obj", "dative", "attr", "oprd", "prep", "ccomp", "conj", "advmod"]
+SUBJECTS = ["nsubj", "nsubj:pass", "nsubjpass", "csubj", "csubjpass", "agent", "expl", "conj"]
+OBJECTS = ["obj", "dative", "attr", "oprd", "prep", "ccomp", "conj", "advmod", "nmod", "obl"]
 
 
-class SVOBase():
+class SVOExtractor():
     """
-        Base class for SVO extraction.
+        Assemble of methods towards SVO extraction.
     """
 
-    def __init__(self, input, lang):
+    def __init__(self, input, lang="en"):
         """
             Creates a new instance.
         :param input: any text.
@@ -197,21 +197,6 @@ class SVOBase():
         return r
 
 
-class DutchSVO(SVOBase):
-
-    def __init__(self, input):
-        super().__init__(input, "nl")
-
-
-class EnglishSVO(SVOBase):
-
-    def __init__(self, input):
-        super().__init__(input, "en")
-
-    def get_svo(self):
-        pass
-
-
 class NamedEntity():
     """
         Captures the details of a named entity.
@@ -329,6 +314,8 @@ class Understanding():
     """
     en_pipeline = None
     nl_pipeline = None
+    de_pipeline = None
+    fr_pipeline = None
 
     def __init__(self):
         pass
@@ -347,6 +334,18 @@ class Understanding():
                 model = Resources.get_udpipe_model(lang)
                 Understanding.en_pipeline = Pipeline(model, "generic_tokenizer", Pipeline.DEFAULT, Pipeline.DEFAULT, "")
             return Understanding.en_pipeline
+        elif lang == "de":
+            if Understanding.de_pipeline is None:
+                from ufal.udpipe import Pipeline
+                model = Resources.get_udpipe_model(lang)
+                Understanding.de_pipeline = Pipeline(model, "generic_tokenizer", Pipeline.DEFAULT, Pipeline.DEFAULT, "")
+            return Understanding.de_pipeline
+        elif lang == "fr":
+            if Understanding.fr_pipeline is None:
+                from ufal.udpipe import Pipeline
+                model = Resources.get_udpipe_model(lang)
+                Understanding.fr_pipeline = Pipeline(model, "generic_tokenizer", Pipeline.DEFAULT, Pipeline.DEFAULT, "")
+            return Understanding.fr_pipeline
         elif lang == "nl":
             if Understanding.nl_pipeline is None:
                 from ufal.udpipe import Pipeline
@@ -428,11 +427,5 @@ class Understanding():
         :param lang: The language of the input.
         :return: A list of 3-tuples
         """
-        if lang == "en":
-            worker = EnglishSVO(input)
-            return worker.get_svo()
-        elif lang == "nl":
-            worker = DutchSVO(input)
-            return worker.get_svo()
-        else:
-            raise Exception(f"Language '{lang}' is not supported.")
+        worker = SVOExtractor(input, lang)
+        return worker.extract_svo()

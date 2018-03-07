@@ -11,6 +11,7 @@ class Resources():
     _nlp = None
     en_model = None
     nl_model = None
+    fr_model = None
 
     @staticmethod
     def get_udpipe_model(lang):
@@ -27,6 +28,18 @@ class Resources():
                 if Resources.en_model is None:
                     raise Exception("Failed to load the English UDPipe model.")
             return Resources.en_model
+        elif lang == "de":
+            if Resources.en_model is None:
+                Resources.en_model = Model.load(os.path.join(res_path, "german-ud-2.0-170801.udpipe"))
+                if Resources.en_model is None:
+                    raise Exception("Failed to load the German UDPipe model.")
+            return Resources.en_model
+        elif lang == "fr":
+            if Resources.fr_model is None:
+                Resources.fr_model = Model.load(os.path.join(res_path, "french-sequoia-ud-2.1-20180111.udpipe"))
+                if Resources.fr_model is None:
+                    raise Exception("Failed to load the French UDPipe model.")
+            return Resources.fr_model
 
         elif lang == "nl":
             if Resources.nl_model is None:
@@ -34,7 +47,6 @@ class Resources():
                 if Resources.nl_model is None:
                     raise Exception("Failed to load the Dutch UDPipe model.")
             return Resources.nl_model
-            # return Model.load(os.path.join(res_path, "dutch-ud-2.1-20180111.udpipe"))
         else:
             raise Exception(f"Language '{lang}' is not supported.")
 

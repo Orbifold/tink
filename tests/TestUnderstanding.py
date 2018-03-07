@@ -5,7 +5,7 @@ import unittest
 from nose.tools import assert_equal, nottest
 
 from ..Language import Language
-from ..Understanding import Understanding, EnglishSVO, DutchSVO
+from ..Understanding import Understanding, SVOExtractor
 
 
 class TestUnderstanding(unittest.TestCase):
@@ -71,14 +71,14 @@ class TestUnderstanding(unittest.TestCase):
 
     def test_get_sv_en(self):
         input = "He says that you like to swim."
-        svo = EnglishSVO(input)
+        svo = SVOExtractor(input)
         found = svo._get_sv()
         print(found)
         print(svo.tree)
         assert len(found) == 1
 
         input = "Peter and Fred went on holidays to France."
-        svo = EnglishSVO(input)
+        svo = SVOExtractor(input)
         found = svo._get_sv()
         print(found)
         assert len(found) == 1
@@ -87,33 +87,34 @@ class TestUnderstanding(unittest.TestCase):
 
     def test_get_vo_en(self):
         input = "Lynda owns a car."
-        svo = EnglishSVO(input)
+        svo = SVOExtractor(input)
         found = svo._get_vo()
         print(svo.tree)
         assert len(found) == 1
         assert_equal(set(found[0]["object"]), {"car"})
 
         input = "Johnny put the weapon in the garage."
-        svo = EnglishSVO(input)
+        svo = SVOExtractor(input)
         print(svo.tree)
         found = svo._get_vo()
-        assert_equal(set(found[0]["object"]), {"weapon"})
+        print(found)
+        assert_equal(set(found[0]["object"]), {"weapon", "garage"})
 
         input = "I have carried your gods and ideas."
-        svo = EnglishSVO(input)
+        svo = SVOExtractor(input)
         print(svo.tree)
         found = svo._get_vo()
         assert_equal(set(found[0]["object"]), {"gods", "ideas"})
 
         input = "Tom entered the empty room with anger and dispair."
-        svo = EnglishSVO(input)
+        svo = SVOExtractor(input)
         print(svo.tree)
         found = svo._get_vo()
-        assert_equal(set(found[0]["object"]), {"room"})
+        assert_equal(set(found[0]["object"]), {"room", "anger", "dispair"})
 
     def test_get_svo_en(self):
         def process(input):
-            svo = EnglishSVO(input)
+            svo = SVOExtractor(input)
             print(svo.tree)
             return svo.extract_svo()
 
@@ -130,7 +131,7 @@ class TestUnderstanding(unittest.TestCase):
 
     def test_get_sv_nl(self):
         input = "Ze zegt dat je niet naar huis wil gaan."
-        svo = DutchSVO(input)
+        svo = SVOExtractor(input, "nl")
         found = svo._get_sv()
         print(found)
         print(svo.tree)
@@ -139,7 +140,7 @@ class TestUnderstanding(unittest.TestCase):
         assert_equal({x["subject"][0] for x in found}, {"Ze"})
 
         input = "George fietst langzaam naar het water"
-        svo = DutchSVO(input)
+        svo = SVOExtractor(input, "nl")
         found = svo._get_sv()
         print(found)
         assert len(found) == 1
@@ -147,7 +148,7 @@ class TestUnderstanding(unittest.TestCase):
         assert_equal({x["subject"][0] for x in found}, {"George"})
 
         input = "Ina en Linde waren goede buren tot dit gebeurde."
-        svo = DutchSVO(input)
+        svo = SVOExtractor(input, "nl")
         found = svo._get_sv()
         print(svo.tree)
         print(found)
@@ -157,7 +158,7 @@ class TestUnderstanding(unittest.TestCase):
 
     def test_get_svo_nl(self):
         input = "Janna heeft een rode wagen en een fiets."
-        svo = DutchSVO(input)
+        svo = SVOExtractor(input, "nl")
         found = svo._get_vo()
         print(found)
         assert len(found) == 1
@@ -166,6 +167,41 @@ class TestUnderstanding(unittest.TestCase):
         assert_equal(svo, [(['Janna'], 'heeft', ['wagen', 'fiets'])])
 
         input = "Janna en Roos hebben samen een nieuw avontuur in Thailand."
-        svo = DutchSVO(input)
+        svo = SVOExtractor(input, "nl")
         svo = svo.extract_svo()
-        assert_equal(svo, [(['Janna', 'Roos'], 'hebben', ['samen', 'avontuur'])])
+        assert_equal(svo, [(['Janna', 'Roos'], 'hebben', ['samen', 'avontuur', 'Thailand'])])
+
+    def test_get_tokens_de(self):
+        input = "ich bin so glücklich mit meinem mann"
+        svo = SVOExtractor(input, "de")
+        found = svo.extract_svo()
+        print(svo.tree)
+        print(found)
+        assert_equal([(['ich'], 'glücklich', ['mann'])], found)
+        """
+        input: 
+        
+            ich bin so glücklich mit meinem mann
+        
+        dependency:
+        
+            glücklich [root, ADJ]
+                + ich [nsubj, PRON]
+                + bin [cop, VERB]
+                + so [advmod, ADV]
+                + mann [nmod, NOUN]
+                    + mit [case, ADP]
+                    + meinem [det:poss, PRON]
+        
+        triple:
+            
+            [(['ich'], 'glücklich', ['mann'])]
+        """
+
+    def test_get_tokens_fr(self):
+        input = "je suis allé à la maison"
+        svo = SVOExtractor(input, "fr")
+        found = svo.extract_svo()
+        print(svo.tree)
+        print(found)
+        assert_equal([(['je'], 'allé', ['maison'])], found)
