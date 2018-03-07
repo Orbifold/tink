@@ -74,7 +74,8 @@ class TestUnderstanding(unittest.TestCase):
         svo = EnglishSVO(input)
         found = svo._get_sv()
         print(found)
-        assert len(found) == 3
+        print(svo.tree)
+        assert len(found) == 1
 
         input = "Peter and Fred went on holidays to France."
         svo = EnglishSVO(input)
@@ -84,10 +85,11 @@ class TestUnderstanding(unittest.TestCase):
         assert_equal(found[0]["verb"], "went")
         assert_equal(set(found[0]["subject"]), {"Fred", "Peter"})
 
-    def test_get_vo(self):
+    def test_get_vo_en(self):
         input = "Lynda owns a car."
         svo = EnglishSVO(input)
         found = svo._get_vo()
+        print(svo.tree)
         assert len(found) == 1
         assert_equal(set(found[0]["object"]), {"car"})
 
@@ -109,7 +111,7 @@ class TestUnderstanding(unittest.TestCase):
         found = svo._get_vo()
         assert_equal(set(found[0]["object"]), {"room"})
 
-    def test_get_svo(self):
+    def test_get_svo_en(self):
         def process(input):
             svo = EnglishSVO(input)
             print(svo.tree)
@@ -131,9 +133,10 @@ class TestUnderstanding(unittest.TestCase):
         svo = DutchSVO(input)
         found = svo._get_sv()
         print(found)
-        assert len(found) == 2
-        assert_equal({x["verb"] for x in found}, {"zegt", "gaan"})
-        assert_equal({x["subject"][0] for x in found}, {"Ze", "je"})
+        print(svo.tree)
+        assert len(found) == 1
+        assert_equal({x["verb"] for x in found}, {"zegt"})
+        assert_equal({x["subject"][0] for x in found}, {"Ze"})
 
         input = "George fietst langzaam naar het water"
         svo = DutchSVO(input)
@@ -148,6 +151,21 @@ class TestUnderstanding(unittest.TestCase):
         found = svo._get_sv()
         print(svo.tree)
         print(found)
-        assert len(found) == 2
-        assert_equal({x["verb"] for x in found}, {"waren","gebeurde"})
+        assert len(found) == 1
+        assert_equal({x["verb"] for x in found}, {"gebeurde"})
         # assert_equal({x["subject"][0] for x in found}, {"George"})
+
+    def test_get_svo_nl(self):
+        input = "Janna heeft een rode wagen en een fiets."
+        svo = DutchSVO(input)
+        found = svo._get_vo()
+        print(found)
+        assert len(found) == 1
+        assert_equal(set(found[0]["object"]), {"wagen", "fiets"})
+        svo = svo.extract_svo()
+        assert_equal(svo, [(['Janna'], 'heeft', ['wagen', 'fiets'])])
+
+        input = "Janna en Roos hebben samen een nieuw avontuur in Thailand."
+        svo = DutchSVO(input)
+        svo = svo.extract_svo()
+        assert_equal(svo, [(['Janna', 'Roos'], 'hebben', ['samen', 'avontuur'])])

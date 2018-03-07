@@ -2,13 +2,14 @@ from .Resources import *
 import os
 
 SUBJECTS = ["nsubj", "nsubjpass", "csubj", "csubjpass", "agent", "expl", "conj"]
-OBJECTS = [ "obj", "dative", "attr", "oprd", "prep", "ccomp", "conj", "advmod"]
+OBJECTS = ["obj", "dative", "attr", "oprd", "prep", "ccomp", "conj", "advmod"]
 
 
 class SVOBase():
     """
         Base class for SVO extraction.
     """
+
     def __init__(self, input, lang):
         """
             Creates a new instance.
@@ -18,6 +19,80 @@ class SVOBase():
         self.input = input
         self.tree = Understanding.get_dependency(input, lang)
 
+    # region Subjects
+    def _get_subjects_from_conjunctions(self, subs):
+        """
+            Looks for additional subjects bound to the given ones via things like 'and' in 'Peter and Fred went...'
+        :param subs: first-level subjects
+        :return: The augmented set of subjects.
+        """
+        more_subs = []
+        for sub in subs:
+            rights = sub.rights
+            more_subs.extend([tok for tok in rights if tok.dep in SUBJECTS or tok.pos == "NOUN" or tok.pos == "PROPN"])
+            if len(more_subs) > 0:
+                more_subs.extend(self._get_subjects_from_conjunctions(more_subs))
+        return more_subs
+
+    def _get_subjects(self, verb):
+        """
+            Returns the subjects for the given verb.
+
+        :param verb:
+        :return:
+        """
+        verb_is_negated = self._is_negated(verb)
+        subs = [tok for tok in verb.lefts if tok.dep in SUBJECTS and tok.pos != "DET"]
+        if len(subs) > 0:
+            subs.extend(self._get_subjects_from_conjunctions(subs))
+        else:
+            found_subs, verb_is_negated = self.find_subjects(verb)
+            subs.extend(found_subs)
+        return subs, verb_is_negated
+
+    def find_subjects(self, tok):
+        head = tok.parent
+        while head.pos != "VERB" and head.pos != "NOUN" and head.parent != head:
+            head = head.parent
+        if head.pos == "VERB":
+            subs = [tok for tok in head.lefts if tok.dep == "SUB"]
+            if len(subs) > 0:
+                verb_negated = self._is_negated(head)
+                subs.extend(self._get_subjects_from_conjunctions(subs))
+                return subs, verb_negated
+            elif head.parent != head:
+                return self.find_subjects(head)
+        elif head.pos == "NOUN":
+            return [head], self._is_negated(tok)
+        return [], False
+
+    # endregion
+
+    # region Verbs
+    def _get_verbs(self):
+        """
+            Gets the (non-auxilliary) verbs.
+            Note that these are the starting verbs for triple extraction and is not the same
+            as getting the POS verbs.
+        :return:
+        """
+        return [node for node in self.tree.nodes if node.dep == "root"]  # and node.pos != "AUX"
+
+    def _is_negated(self, token):
+        """
+            Looks for lefts and rights whether a negating token is present.
+        :param token: A doc token.
+        :return:
+        """
+        negations = {"no", "not", "n't", "never", "none"}
+        for dep in token.lefts + token.rights:
+            if dep.word.lower() in negations:
+                return True
+        return False
+
+    # endregion
+
+    # region Objects
     def _get_objects_from_prepositions(self, deps):
         """
             Preposition: a word governing, and usually preceding, a noun or pronoun and expressing a relation to another word or element in the clause,
@@ -73,72 +148,10 @@ class SVOBase():
             objs.extend(self._get_objects_from_conjunctions(objs))
         return verb, objs
 
-    def _get_verbs(self):
-        """
-            Gets the (non-auxilliary) verbs.
-            Note that these are the starting verbs for triple extraction and is not the same
-            as getting the POS verbs.
-        :return:
-        """
-        return [node for node in self.tree.nodes if node.pos == "VERB" and node.pos != "AUX"]
+    # endregion
 
-    def _is_negated(self, token):
-        """
-            Looks for lefts and rights whether a negating token is present.
-        :param token: A doc token.
-        :return:
-        """
-        negations = {"no", "not", "n't", "never", "none"}
-        for dep in token.lefts + token.rights:
-            if dep.word.lower() in negations:
-                return True
-        return False
-
-    def _get_subjects_from_conjunctions(self, subs):
-        """
-            Looks for additional subjects bound to the given ones via things like 'and' in 'Peter and Fred went...'
-        :param subs: first-level subjects
-        :return: The augmented set of subjects.
-        """
-        more_subs = []
-        for sub in subs:
-            rights = sub.rights
-            more_subs.extend([tok for tok in rights if tok.dep in SUBJECTS or tok.pos == "NOUN" or tok.pos == "PROPN"])
-            if len(more_subs) > 0:
-                more_subs.extend(self._get_subjects_from_conjunctions(more_subs))
-        return more_subs
-
-    def _get_subjects(self, verb):
-        """
-            Returns the subjects for the given verb.
-
-        :param verb:
-        :return:
-        """
-        verb_is_negated = self._is_negated(verb)
-        subs = [tok for tok in verb.lefts if tok.dep in SUBJECTS and tok.pos != "DET"]
-        if len(subs) > 0:
-            subs.extend(self._get_subjects_from_conjunctions(subs))
-        else:
-            found_subs, verb_is_negated = self.find_subjects(verb)
-            subs.extend(found_subs)
-        return subs, verb_is_negated
-
-    def find_subjects(self, tok):
-        head = tok.parent
-        while head.pos != "VERB" and head.pos != "NOUN" and head.parent != head:
-            head = head.parent
-        if head.pos == "VERB":
-            subs = [tok for tok in head.lefts if tok.dep == "SUB"]
-            if len(subs) > 0:
-                verb_negated = self._is_negated(head)
-                subs.extend(self._get_subjects_from_conjunctions(subs))
-                return subs, verb_negated
-            elif head.parent != head:
-                return self.find_subjects(head)
-        elif head.pos == "NOUN":
-            return [head], self._is_negated(tok)
-        return [], False
+    def _merge_svo(self, subjects, verb, objects):
+        return (subjects, verb, objects)
 
     def extract_svo(self):
         """
@@ -151,11 +164,12 @@ class SVOBase():
             subjects, verb_negated = self._get_subjects(verb)
             # hopefully there are subs, if not, don't examine this verb any longer
             if len(subjects) > 0:
-                verb, objs = self._get_objects(verb)
-                for subject in subjects:
-                    for obj in objs:
-                        obj_negated = self._is_negated(obj)
-                        svos.append((subject.word.lower(), "!" + verb.word.lower() if verb_negated or obj_negated else verb.word.lower(), obj.word.lower()))
+                verb, objects = self._get_objects(verb)
+                svos.append(self._merge_svo([s.word for s in subjects], verb.word, [o.word for o in objects]))
+                # for subject in subjects:
+                #     for obj in objects:
+                #         obj_negated = self._is_negated(obj)
+                #         svos.append((subject.word.lower(), "!" + verb.word.lower() if verb_negated or obj_negated else verb.word.lower(), obj.word.lower()))
         return svos
 
     def _get_sv(self):
@@ -170,22 +184,6 @@ class SVOBase():
             })
         return r
 
-class DutchSVO(SVOBase):
-
-    def __init__(self, input):
-        super().__init__(input, "nl")
-
-    def get_svo(self):
-        pass
-
-
-class EnglishSVO(SVOBase):
-
-    def __init__(self, input):
-        super().__init__(input, "en")
-
-
-
     def _get_vo(self):
         verbs = self._get_verbs()
         r = []
@@ -197,6 +195,18 @@ class EnglishSVO(SVOBase):
                 "object": [t.word for t in objs[1]]
             })
         return r
+
+
+class DutchSVO(SVOBase):
+
+    def __init__(self, input):
+        super().__init__(input, "nl")
+
+
+class EnglishSVO(SVOBase):
+
+    def __init__(self, input):
+        super().__init__(input, "en")
 
     def get_svo(self):
         pass
